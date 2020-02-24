@@ -1,0 +1,224 @@
+---
+title: "LbbC1"
+author: "Ronny Raharjo"
+date: "`r format(Sys.Date(), '%B %e, %Y')`"
+output:
+  html_document:
+    theme: readable
+    highligh: zenburn
+    toc: true 
+    toc_float: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Library and Setup
+
+Pada metode klasifikasi menggonakan Regresi Logistik dan K-NN ini, sebelumnya Anda harus melakukan install.package() pada package readr, tidyverse, MASS, gtools, gmodels, class, caret, ggplot2 pada R Studio Anda. Apabila telah ter-install, maka lakukan pengaktifan package menggunakan library().
+
+```{r}
+# libraries
+
+library(readr)
+library(tidyverse)
+library(gtools)
+library(gmodels)
+library(class)
+library(caret)
+library(ggplot2)
+library(MASS)
+```
+
+R Markdown    
+
+## 2. Logistic Regression        
+### 2.1 Data Import       
+
+Dataset mengacu pada klien dari distributor grosir. Ini termasuk pengeluaran tahunan dalam unit moneter (m.u.) pada kategori produk yang beragam.
+
+Source: UCI Wholesale customers Data Set
+
+```{r}
+wholesale <- read.csv("data_input/wholesale.csv")
+str(wholesale)
+```
+Informasi penting dalam data :
+
+Channel : (1 = Horeca; 2 = Retail)
+
+Region : (1 = Lisnon; 2 = Oporto, 3 = Other)
+
+Fresh : annual spending (m.u.) on fresh products 
+
+Milk : annual spending (m.u.) on milk products
+
+Grocery : annual spending (m.u.)on grocery products
+
+Frozen : annual spending (m.u.)on frozen products
+
+Detergents_Paper : annual spending (m.u.) on detergents and paper products
+
+Delicassen : annual spending (m.u.)on and delicatessen products
+
+
+### 2.2 Data Manipulation
+
+Memberikan label pada data kategorik yang merupakan data integer menjadi data faktor dan menghapus kolom Region karena nilainya hanya 3.
+
+```{r}
+wholesale_clean <- wholesale %>% 
+  
+  mutate(Channel = factor(Channel, levels = c(1,2), labels = c("Horeca","Retail"))) %>% 
+  dplyr::select(.,-Region) 
+  
+```
+Lakukan pengecekan terhadap NA pada maisng-masing variabel.
+```{r}
+colSums(is.na(wholesale_clean))
+```
+### 2.3 Exploratory Data Analysis
+
+2.3.1 Modeling
+
+```{r}
+prop.table(table(wholesale_clean$Channel))
+```
+```{r}
+table(wholesale_clean$Channel)
+```
+Membuat data training dan data testing.
+```{r}
+set.seed(303)
+intrain<-sample(nrow(wholesale_clean),nrow(wholesale_clean)*0.7)
+wholesale_clean_train<-wholesale_clean[intrain,]
+wholesale_clean_test<-wholesale_clean[-intrain,]
+wholesale_clean$Channel %>% 
+  levels()
+```
+
+Melakukan pemodelan menggunakan regresi logistik. Pemodelan menggunakan fungsi glm dalam memodelkan menggunakan regresi logistik. Variabel yang digunakan adalah semua variabel, dimana variabel target menjadi variabel responnya.
+
+```{r}
+model<-glm(formula = Channel~Fresh+Milk+Grocery+Frozen, family = "binomial", data = wholesale_clean_train)
+summary(model)
+```
+
+Model fitting menggunakan metode stepwise.
+
+```{r}
+model2<-stepAIC(model,direction = "backward")
+```
+```{r}
+summary(model2)
+```
+
+```{r}
+wholesale_clean_test$prob_channel<-predict(model2, type = "response", newdata = wholesale_clean_test[,-7])
+```
+
+Melihat peluang sebarang prediksi data.
+
+```{r}
+ggplot(wholesale_clean_test, aes(x=prob_channel))+geom_density(lwd=0.5)+theme_minimal()
+```
+Pada grafik diatas, dapat diinterpretasikan bahwa hasil prediksi yang dilakukan lebih condong ke arah 1 yang artinya Horeca.
+
+```{r}
+wholesale_clean_test$pred_channel<-factor(ifelse(wholesale_clean_test$prob_channel>0.5, "Horeca","Retail"))
+wholesale_clean_test[1:10,c("pred_channel","Channel")]
+```
+
+
+2.3.2 Evaluation Model
+```{r}
+log_conf<-confusionMatrix(wholesale_clean_test$pred_channel, wholesale_clean_test$Channel, positive="Retail")
+log_conf
+```
+Re-call/Sensitivity = dari semua data aktual yang positif, seberapa mampu proporsi model saya menebak benar. Specificity = dari semua data aktual yang negatif, seberapa mampu proporsi model saya menebak yang benar. Accuracy = seberapa mampu model saya menebak dengan benar target Y.
+
+Re-call = (11)/(40+11) Specificity = (3)/(3+78) Accuracy = (3+11)/(3+40+78+11)
+
+```{r}
+Recall = (12)/(39+12)
+Specificity = (6)/(6+75)
+Accuracy = (6+12)/(6+39+75+12)
+
+paste("Recall", Recall)
+```
+```{r}
+paste("Specificity", Specificity)
+```
+
+
+```{r}
+paste("Accuracy", Accuracy)
+```
+Berdasarkan hasil confusionMatrix diatas, dapat kita ambil informasi bahwa kemampuan model dalam menebak target Y (Horeca dan Retail) sebesar 13,6%. Sedangkan dari keseluruhan data aktual Horeca, model dapat mampu menebak benar sebesar 23,5%. Dari keseluruhan data aktual Horeca, model mampu menebak dengan benar sebesar 7,4% dengan menggunakan predictor Fresh, Milk, Grocery, Frozen.
+
+
+
+## 3. K-Nearest Neighbour
+
+Mengubah type data numeric menjadi scale
+
+```{r}
+ws_scale <-wholesale_clean %>% 
+  mutate_if(is.numeric,scale)
+```
+Membentuk data training dan data testing dari data ws_scale yang telah terbentuk.
+
+```{r}
+RNGkind(sample.kind = "Rounding")
+set.seed(20)
+index <- sample(nrow(ws_scale), nrow(ws_scale)*0.8)
+train_x <- ws_scale[index, -1] # prediktor data train
+test_x <- ws_scale[-index, -1] # prediktor data test
+train_y <- ws_scale[index, 1] # target data train
+test_y <- ws_scale[-index, 1] # target data test
+```
+
+Menghitung jumlah sqrt.
+```{r}
+sqrt(nrow(wholesale_clean))
+```
+
+Melakukan prediksi dengan K-NN
+```{r}
+pred_wholesale_knn <- knn(train = train_x, test = test_x, cl = train_y, k = 21)
+```
+
+Membuat confusion matriks dari prediski K-NN.
+```{r}
+pred_knn_conf <- confusionMatrix(pred_wholesale_knn, reference = test_y, positive = "Horeca")
+```
+
+Berdasarkan hasil confusion matrix diatas, dapat kita ketahui bahwa kemampuan model dalam menebak target Y sebesar 90,9%. Sedangkan berdasarkan data aktual Horeca, model dapat menebak dengan benar sebesar 94,6%. berdasarkan data aktual Retail, model dapat menebak dengan benar sebesar 84,4%.
+
+## 4. Model Evaluation Logistic Regression and K-NN
+
+```{r}
+eval_logit <- data_frame(Accuracy = log_conf$overall[1],
+           Recall = log_conf$byClass[1],
+           Precision = log_conf$byClass[3])
+
+eval_knn <- data_frame(Accuracy = pred_knn_conf$overall[1],
+           Recall = pred_knn_conf$byClass[1],
+           Precision = pred_knn_conf$byClass[3])
+```
+
+```{r}
+eval_logit
+```
+
+```{r}
+eval_knn
+```
+Jika dilihat dari kedua metode tersebut, yaitu dengan menggunakan Regresi Logistik dan K-NN, kemampupuan model dalam memprediksi benar dari data aktual Horeca lebih baik dengan menggunakan metode K-NN karena memiliki nilai recall= 94,6% lebih besar dari pada menggunakan metode regresi logistik.
+
+
+
+
+
