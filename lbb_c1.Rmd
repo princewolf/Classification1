@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## 1. Library and Setup
 
-Pada metode klasifikasi menggonakan Regresi Logistik dan K-NN ini, sebelumnya Anda harus melakukan install.package() pada package readr, tidyverse, MASS, gtools, gmodels, class, caret, ggplot2 pada R Studio Anda. Apabila telah ter-install, maka lakukan pengaktifan package menggunakan library().
+Pada metode klasifikasi menggunakan Regresi Logistik dan K-NN ini, sebelumnya Anda harus melakukan install.package() pada package readr, tidyverse, MASS, gtools, gmodels, class, caret, ggplot2 pada R Studio Anda. Apabila telah ter-install, maka lakukan pengaktifan package menggunakan library().
 
 ```{r}
 # libraries
@@ -34,8 +34,11 @@ library(MASS)
 
 R Markdown    
 
-## 2. Logistic Regression        
-### 2.1 Data Import       
+## 2. Tujuan 
+Tujuan dari memprediksi data wholesale ini adalah untuk mendapatkan apakah channelnya berasal dari Horeca atau dari Retail. Metode yang digunakan dalam memprediksi ini adalah Logistic Regression dan KNN. 
+
+## 3. Logistic Regression        
+### 3.1 Data Import       
 
 Dataset mengacu pada klien dari distributor grosir. Ini termasuk pengeluaran tahunan dalam unit moneter (m.u.) pada kategori produk yang beragam.
 
@@ -64,7 +67,7 @@ Detergents_Paper : annual spending (m.u.) on detergents and paper products
 Delicassen : annual spending (m.u.)on and delicatessen products
 
 
-### 2.2 Data Manipulation
+### 3.2 Data Manipulation
 
 Memberikan label pada data kategorik yang merupakan data integer menjadi data faktor dan menghapus kolom Region karena nilainya hanya 3.
 
@@ -79,13 +82,15 @@ Lakukan pengecekan terhadap NA pada maisng-masing variabel.
 ```{r}
 colSums(is.na(wholesale_clean))
 ```
-### 2.3 Exploratory Data Analysis
+### 3.3 Exploratory Data Analysis
 
-2.3.1 Modeling
+3.3.1 Modeling
 
+Lakukan pengecekan proposional data antara Horeca dan Retail menggunakan prop.table() dan table. Jika data tidak proposional antara Horeca dan Retail misal Horeca 90% dan Retail 10% maka tidak perlu di buat model untuk memprediksinya, karena model apapun yang digunakan pasti semua mengacu ke Horeca.  
 ```{r}
 prop.table(table(wholesale_clean$Channel))
 ```
+
 ```{r}
 table(wholesale_clean$Channel)
 ```
@@ -114,6 +119,8 @@ model2<-stepAIC(model,direction = "backward")
 ```{r}
 summary(model2)
 ```
+untuk setiap kenaikan variabel Fresh sebesar 1 akan berkontribusi terhadap kenaikan log of odds sebesar -0.00003233.
+
 
 ```{r}
 wholesale_clean_test$prob_channel<-predict(model2, type = "response", newdata = wholesale_clean_test[,-7])
@@ -132,7 +139,7 @@ wholesale_clean_test[1:10,c("pred_channel","Channel")]
 ```
 
 
-2.3.2 Evaluation Model
+3.3.2 Evaluation Model
 ```{r}
 log_conf<-confusionMatrix(wholesale_clean_test$pred_channel, wholesale_clean_test$Channel, positive="Retail")
 log_conf
@@ -158,9 +165,9 @@ paste("Accuracy", Accuracy)
 ```
 Berdasarkan hasil confusionMatrix diatas, dapat kita ambil informasi bahwa kemampuan model dalam menebak target Y (Horeca dan Retail) sebesar 13,6%. Sedangkan dari keseluruhan data aktual Horeca, model dapat mampu menebak benar sebesar 23,5%. Dari keseluruhan data aktual Horeca, model mampu menebak dengan benar sebesar 7,4% dengan menggunakan predictor Fresh, Milk, Grocery, Frozen.
 
+Logistic Regression kurang cocok untuk data ini karena performanya sangat rendah.
 
-
-## 3. K-Nearest Neighbour
+## 4. K-Nearest Neighbour
 
 Mengubah type data numeric menjadi scale
 
@@ -197,7 +204,7 @@ pred_knn_conf <- confusionMatrix(pred_wholesale_knn, reference = test_y, positiv
 
 Berdasarkan hasil confusion matrix diatas, dapat kita ketahui bahwa kemampuan model dalam menebak target Y sebesar 90,9%. Sedangkan berdasarkan data aktual Horeca, model dapat menebak dengan benar sebesar 94,6%. berdasarkan data aktual Retail, model dapat menebak dengan benar sebesar 84,4%.
 
-## 4. Model Evaluation Logistic Regression and K-NN
+## 5. Model Evaluation Logistic Regression and K-NN
 
 ```{r}
 eval_logit <- data_frame(Accuracy = log_conf$overall[1],
@@ -218,7 +225,7 @@ eval_knn
 ```
 Jika dilihat dari kedua metode tersebut, yaitu dengan menggunakan Regresi Logistik dan K-NN, kemampupuan model dalam memprediksi benar dari data aktual Horeca lebih baik dengan menggunakan metode K-NN karena memiliki nilai recall= 94,6% lebih besar dari pada menggunakan metode regresi logistik.
 
-
+Pemilihan model bisa dipengaruhi juga dari tipe datanya. Ketika tipe data prediktornya banyak yang numerik seperti data ini, ternyata K-nn bisa memberikan hasil yang sangat baik dibandingkan regresi logistik.
 
 
 
